@@ -1,0 +1,32 @@
+.godspeed-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 2147483647;
+  max-width: 400px;
+  word-wrap: break-word;
+  opacity: 0;
+  transform: translateX(400px);
+  transition: all 0.3s ease-in-out;
+}
+
+.godspeed-notification.godspeed-show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.godspeed-notification.godspeed-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.godspeed-notification.godspeed-error {
+  background-color: #ef4444;
+  color: white;
+}
