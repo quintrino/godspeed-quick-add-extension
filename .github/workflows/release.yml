@@ -1,0 +1,139 @@
+name: Test and publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: Build store packages
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zips
+          path: dist/*.zip
+
+  # Each store is submitted only when this manifest version has not been
+  # submitted there before. That is tracked with a `<store>-v<version>` git tag,
+  # so pushes that don't bump the version just run the tests.
+  publish-firefox:
+    name: Submit to Firefox Add-ons
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-firefox
+      cancel-in-progress: false
+    env:
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Decide whether to submit
+        id: plan
+        shell: bash
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          tag="firefox-v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Version ${version} was already submitted to Firefox; nothing to do."
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+          elif [[ -z "${AMO_JWT_ISSUER}" || -z "${AMO_JWT_SECRET}" ]]; then
+            echo "::warning::AMO_JWT_ISSUER / AMO_JWT_SECRET are not set; skipping Firefox submission."
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "submit=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.plan.outputs.submit == 'true'
+        run: npm run build
+
+      - name: Submit to Firefox Add-ons
+        if: steps.plan.outputs.submit == 'true'
+        run: node scripts/amo.mjs "dist/godspeed-task-sender-firefox-${{ steps.plan.outputs.version }}.zip"
+
+      - name: Record submitted version
+        if: steps.plan.outputs.submit == 'true'
+        run: |
+          git tag "${{ steps.plan.outputs.tag }}" "${{ github.sha }}"
+          git push origin "${{ steps.plan.outputs.tag }}"
+
+  publish-chrome:
+    name: Submit to Chrome Web Store
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-chrome
+      cancel-in-progress: false
+    env:
+      CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+      CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+      CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Decide whether to submit
+        id: plan
+        shell: bash
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          tag="chrome-v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Version ${version} was already submitted to Chrome; nothing to do."
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+          elif [[ -z "${CWS_CLIENT_ID}" || -z "${CWS_CLIENT_SECRET}" || -z "${CWS_REFRESH_TOKEN}" \
+               || -z "${CWS_PUBLISHER_ID}" || -z "${CWS_EXTENSION_ID}" ]]; then
+            echo "::warning::Chrome Web Store secrets are not all set; skipping Chrome submission."
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "submit=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.plan.outputs.submit == 'true'
+        run: npm run build
+
+      - name: Submit to the Chrome Web Store
+        if: steps.plan.outputs.submit == 'true'
+        run: node scripts/cws.mjs "dist/godspeed-task-sender-chrome-${{ steps.plan.outputs.version }}.zip"
+
+      - name: Record submitted version
+        if: steps.plan.outputs.submit == 'true'
+        run: |
+          git tag "${{ steps.plan.outputs.tag }}" "${{ github.sha }}"
+          git push origin "${{ steps.plan.outputs.tag }}"

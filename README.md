@@ -115,6 +115,34 @@ godspeed-extension/
 └── README.md           # This file
 ```
 
+## Development and releasing
+
+```bash
+npm test         # run the test suite (Node 22+, no dependencies to install)
+npm run build    # build dist/*-firefox-<version>.zip and dist/*-chrome-<version>.zip
+```
+
+`manifest.json` (Manifest V2) is the single source of truth and is what Firefox
+receives. The Chrome package is generated from it as Manifest V3 at build time,
+so the name, version and commands can never drift apart.
+
+On every push to `main`, GitHub Actions runs the tests. If they pass, it submits
+the new version to **Firefox Add-ons** and the **Chrome Web Store** for review.
+A store is only submitted to when the `version` in `manifest.json` is new for
+that store (tracked with `firefox-v<version>` and `chrome-v<version>` git tags),
+so **bump `version` in `manifest.json` to release**. Pushes without a bump only
+run the tests.
+
+Required repository secrets:
+
+| Secret | Used for |
+| --- | --- |
+| `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | Firefox: API key and secret from https://addons.mozilla.org/developers/addon/api/key/ |
+| `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | Chrome: OAuth credentials with the `chromewebstore` scope |
+| `CWS_PUBLISHER_ID`, `CWS_EXTENSION_ID` | Chrome: from the Developer Dashboard |
+
+If a store's secrets are missing, that store is skipped with a warning.
+
 ## Privacy
 
 This extension:
