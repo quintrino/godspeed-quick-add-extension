@@ -1,0 +1,57 @@
+{
+  "manifest_version": 2,
+  "name": "Godspeed Task Sender",
+  "version": "1.0.1",
+  "description": "Send current tab to Godspeed with a click or keyboard shortcut",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "https://api.godspeedapp.com/*"
+  ],
+  "browser_action": {
+    "default_title": "Send to Godspeed",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "commands": {
+    "send-to-godspeed": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Send current tab(s) to Godspeed"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "godspeed@example.com",
+      "strict_min_version": "58.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}
