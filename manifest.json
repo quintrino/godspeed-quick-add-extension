@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Godspeed Task Sender",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Send current tab to Godspeed with a click or keyboard shortcut",
   "permissions": [
     "activeTab",
