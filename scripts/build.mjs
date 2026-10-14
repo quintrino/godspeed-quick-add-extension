@@ -15,6 +15,8 @@ export const EXTENSION_FILES = [
   'content.css',
   'options.html',
   'options.js',
+  'quick.html',
+  'quick.js',
   'icon16.png',
   'icon48.png',
   'icon128.png',

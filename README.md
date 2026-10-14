@@ -6,6 +6,7 @@ A cross-browser extension that sends your current browser tabs to Godspeed with 
 
 - ✨ Send current tab or multiple selected tabs to Godspeed
 - ⌨️ Keyboard shortcut: `Cmd+Shift+Y` (Mac) or `Ctrl+Shift+Y` (Windows/Linux)
+- ⚡ Quick add: `Cmd+Shift+U` / `Ctrl+Shift+U` opens a box to type a note first
 - 🎯 Success/error notifications appear on the webpage
 - ⚙️ Easy configuration via options page
 - 🌐 Works on both Chrome and Firefox
@@ -58,10 +59,27 @@ A cross-browser extension that sends your current browser tabs to Godspeed with 
 2. Click the extension icon or use the keyboard shortcut
 3. Each tab will be sent as a separate task
 
+### Quick Add (type a note first)
+1. Press `Cmd+Shift+U` (Mac) or `Ctrl+Shift+U` (Windows/Linux)
+2. Start typing straight away. The box is already focused
+3. Press `Enter` to save (or `Esc` to cancel)
+
+The box closes as soon as you press Enter, and the usual success or error message
+appears on the page. Enter on an empty box does nothing. On pages that can't show
+the box (new tab, `about:` and `chrome://` pages, the extension stores) a small
+window opens instead and works the same way.
+
+Change the shortcut at `chrome://extensions/shortcuts` (Chrome) or
+`about:addons` → gear icon → *Manage Extension Shortcuts* (Firefox).
+
 ### Task Format
 Tasks are created with the following title format:
 ```
 title: [Page Title] url: [Page URL]
+```
+With Quick Add, what you typed goes at the front:
+```
+[Your note] title: [Page Title] url: [Page URL]
 ```
 
 ## Notifications

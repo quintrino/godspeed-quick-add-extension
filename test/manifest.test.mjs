@@ -61,3 +61,25 @@ test('chrome manifest moves host patterns out of permissions', () => {
 test('conversion refuses a source that is not Manifest V2', () => {
   assert.throws(() => toChromeManifest({ ...mv2, manifest_version: 3 }), /Manifest V2/);
 });
+
+test('the quick-add shortcut is declared next to the existing one, in both packages', () => {
+  const mv3 = toChromeManifest(mv2);
+  for (const m of [mv2, mv3]) {
+    assert.ok(m.commands['send-to-godspeed'], 'existing shortcut kept');
+    const quick = m.commands['quick-add-to-godspeed'];
+    assert.ok(quick, 'quick-add shortcut declared');
+    assert.ok(quick.suggested_key.default && quick.suggested_key.mac);
+    assert.notEqual(quick.suggested_key.default, m.commands['send-to-godspeed'].suggested_key.default);
+    assert.notEqual(quick.suggested_key.mac, m.commands['send-to-godspeed'].suggested_key.mac);
+  }
+});
+
+test('the fallback page and its script ship in the package', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.ok(EXTENSION_FILES.includes('quick.html'));
+  assert.ok(EXTENSION_FILES.includes('quick.js'));
+  // MV3 forbids inline scripts, so the page must load its code from a file
+  const html = readFileSync(join(ROOT, 'quick.html'), 'utf8');
+  assert.match(html, /<script src="quick\.js"><\/script>/);
+  assert.doesNotMatch(html, /<script(?![^>]*src=)[^>]*>/);
+});

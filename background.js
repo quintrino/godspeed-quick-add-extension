@@ -26,10 +26,62 @@ browserAPI.commands.onCommand.addListener(async (command) => {
     const tabs = await browserAPI.tabs.query({ highlighted: true, currentWindow: true });
     console.log('Selected tabs:', tabs);
     await sendTabsToGodspeed(tabs);
+  } else if (command === 'quick-add-to-godspeed') {
+    await openQuickAdd();
   }
 });
 
-async function sendTabsToGodspeed(tabs) {
+// The quick-add box sends the typed text here
+browserAPI.runtime.onMessage.addListener((message, sender) => {
+  if (message && message.action === 'quickAdd') {
+    handleQuickAdd(message, sender);
+  }
+});
+
+// Show the quick-add box on the active tab. The content script is already loaded
+// there, so this is a single message. Pages that can't run content scripts
+// (new tab, about:, chrome://, the extension stores) get a small window instead.
+async function openQuickAdd() {
+  const [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+
+  try {
+    const reply = await browserAPI.tabs.sendMessage(tab.id, { action: 'openQuickAdd' });
+    if (reply && reply.ok) return;
+  } catch (error) {
+    console.log('Quick add not available on this page, using a window:', error.message);
+  }
+
+  await browserAPI.windows.create({
+    url: browserAPI.runtime.getURL(`quick.html?tabId=${tab.id}`),
+    type: 'popup',
+    width: 560,
+    height: 90,
+    focused: true
+  });
+}
+
+async function handleQuickAdd(message, sender) {
+  const text = typeof message.text === 'string' ? message.text.trim() : '';
+  if (!text) return;
+
+  // From the page overlay the sender is the tab itself; from the fallback window
+  // it is the window's own tab, so the target tab id travels in the message.
+  let tab = sender && sender.tab;
+  if (message.tabId) {
+    try {
+      tab = await browserAPI.tabs.get(message.tabId);
+    } catch (error) {
+      console.error('Quick add target tab is gone:', error);
+      return;
+    }
+  }
+  if (!tab) return;
+
+  await sendTabsToGodspeed([tab], text);
+}
+
+async function sendTabsToGodspeed(tabs, prefix) {
   console.log('sendTabsToGodspeed called with:', tabs);
 
   // Get settings
@@ -59,7 +111,7 @@ async function sendTabsToGodspeed(tabs) {
   for (const tab of tabs) {
     console.log('Sending tab:', tab.title);
     try {
-      await sendTab(tab, settings.apiKey, settings.listId);
+      await sendTab(tab, settings.apiKey, settings.listId, prefix);
       console.log('Tab sent successfully:', tab.title);
       results.success.push(tab);
     } catch (error) {
@@ -99,8 +151,9 @@ async function sendTabsToGodspeed(tabs) {
   }
 }
 
-async function sendTab(tab, apiKey, listId) {
-  const title = `title: ${tab.title} url: ${tab.url}`;
+async function sendTab(tab, apiKey, listId, prefix) {
+  // Quick-add text, when given, goes at the front of the task
+  const title = `${prefix ? prefix + ' ' : ''}title: ${tab.title} url: ${tab.url}`;
 
   const body = {
     title: title

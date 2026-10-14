@@ -9,16 +9,31 @@ const source = readFileSync(join(ROOT, 'background.js'), 'utf8');
 const tick = () => new Promise((r) => setImmediate(r));
 
 /** Load background.js in a sandbox with a fake extension API and fetch. */
-function load({ api = 'chrome', fetchImpl, settings = {}, tabUrl = 'https://example.com' } = {}) {
-  const calls = { messages: [], clicks: [], commands: [], fetches: [] };
+function load({
+  api = 'chrome',
+  fetchImpl,
+  settings = {},
+  tabUrl = 'https://example.com',
+  activeTabs = [],
+  sendMessageImpl,
+} = {}) {
+  const calls = { messages: [], clicks: [], commands: [], fetches: [], runtime: [], windows: [] };
   const listener = (list) => ({ addListener: (fn) => list.push(fn) });
   const extension = {
     commands: { onCommand: listener(calls.commands) },
     tabs: {
-      query: async () => [],
-      get: async (id) => ({ id, url: tabUrl }),
-      sendMessage: async (id, msg) => calls.messages.push({ id, ...msg }),
+      query: async () => activeTabs,
+      get: async (id) => ({ id, url: tabUrl, title: `tab ${id}` }),
+      sendMessage: async (id, msg) => {
+        calls.messages.push({ id, ...msg });
+        return sendMessageImpl ? sendMessageImpl(id, msg) : undefined;
+      },
     },
+    runtime: {
+      onMessage: listener(calls.runtime),
+      getURL: (path) => `chrome-extension://test/${path}`,
+    },
+    windows: { create: async (opts) => calls.windows.push(opts) },
     storage: { sync: { get: async () => settings } },
   };
   if (api === 'browser-mv2') extension.browserAction = { onClicked: listener(calls.clicks) };
@@ -120,4 +135,102 @@ test('notifications are not sent to browser-internal pages', async () => {
     await tick();
     assert.equal(calls.messages.length, 0, tabUrl);
   }
+});
+
+// ── Quick add ─────────────────────────────────────────────────────────────────
+
+const quickCommand = (ctx, calls) => calls.commands[0]('quick-add-to-godspeed');
+const sendRuntime = (calls, message, sender = {}) => calls.runtime[0](message, sender);
+const taskTitle = (calls) => JSON.parse(calls.fetches[0].init.body).title;
+
+test('quick-add text goes at the front of the task title', async () => {
+  const { ctx, calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K' } });
+  await ctx.sendTab({ title: 'Page', url: 'https://x.test/' }, 'K', '', 'buy milk');
+  assert.equal(taskTitle(calls), 'buy milk title: Page url: https://x.test/');
+});
+
+test('without quick-add text the title format is unchanged', async () => {
+  const { ctx, calls } = load({ fetchImpl: () => ok() });
+  await ctx.sendTab({ title: 'Page', url: 'https://x.test/' }, 'K', '', undefined);
+  assert.equal(taskTitle(calls), 'title: Page url: https://x.test/');
+});
+
+test('the quick-add shortcut asks the active tab to show its box', async () => {
+  const { ctx, calls } = load({
+    activeTabs: [{ id: 5, url: 'https://x.test' }],
+    sendMessageImpl: () => ({ ok: true }),
+  });
+  await quickCommand(ctx, calls);
+  assert.deepEqual(calls.messages, [{ id: 5, action: 'openQuickAdd' }]);
+  assert.equal(calls.windows.length, 0);
+});
+
+test('quick add falls back to a small window when the page cannot show the box', async () => {
+  for (const sendMessageImpl of [
+    () => undefined, // no content script answered
+    () => { throw new Error('Receiving end does not exist'); },
+  ]) {
+    const { ctx, calls } = load({ activeTabs: [{ id: 8, url: 'about:newtab' }], sendMessageImpl });
+    await quickCommand(ctx, calls);
+    assert.equal(calls.windows.length, 1);
+    assert.equal(calls.windows[0].url, 'chrome-extension://test/quick.html?tabId=8');
+    assert.equal(calls.windows[0].type, 'popup');
+    assert.equal(calls.windows[0].focused, true);
+  }
+});
+
+test('quick add does nothing when there is no active tab', async () => {
+  const { ctx, calls } = load({ activeTabs: [] });
+  await quickCommand(ctx, calls);
+  assert.equal(calls.messages.length, 0);
+  assert.equal(calls.windows.length, 0);
+});
+
+test('typed text from the page box creates a task for that page with the text first', async () => {
+  const { calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K', listId: 'L' } });
+  await sendRuntime(
+    calls,
+    { action: 'quickAdd', text: '  call dentist  ' },
+    { tab: { id: 3, title: 'Clinic', url: 'https://clinic.test/' } },
+  );
+  await tick();
+  assert.equal(calls.fetches.length, 1);
+  const body = JSON.parse(calls.fetches[0].init.body);
+  assert.equal(body.title, 'call dentist title: Clinic url: https://clinic.test/');
+  assert.equal(body.list_id, 'L');
+});
+
+test('typed text from the fallback window targets the tab named in the message', async () => {
+  const { calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K' } });
+  await sendRuntime(
+    calls,
+    { action: 'quickAdd', text: 'read later', tabId: 42 },
+    { tab: { id: 999, title: 'the popup window', url: 'chrome-extension://test/quick.html' } },
+  );
+  await tick();
+  assert.equal(taskTitle(calls), 'read later title: tab 42 url: https://example.com');
+});
+
+test('empty quick-add text and unrelated messages create nothing', async () => {
+  const { calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K' } });
+  const sender = { tab: { id: 1, title: 't', url: 'u' } };
+  await sendRuntime(calls, { action: 'quickAdd', text: '   ' }, sender);
+  await sendRuntime(calls, { action: 'quickAdd' }, sender);
+  await sendRuntime(calls, { action: 'somethingElse', text: 'x' }, sender);
+  await sendRuntime(calls, undefined, sender);
+  await tick();
+  assert.equal(calls.fetches.length, 0);
+});
+
+test('the existing send shortcut still sends the tab immediately, without a box', async () => {
+  const { calls } = load({
+    fetchImpl: () => ok(),
+    settings: { apiKey: 'K' },
+    activeTabs: [{ id: 1, title: 'Page', url: 'https://x.test/' }],
+  });
+  await calls.commands[0]('send-to-godspeed');
+  await tick();
+  assert.equal(taskTitle(calls), 'title: Page url: https://x.test/');
+  assert.equal(calls.windows.length, 0);
+  assert.ok(!calls.messages.some((m) => m.action === 'openQuickAdd'));
 });
