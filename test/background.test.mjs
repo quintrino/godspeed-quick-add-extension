@@ -179,6 +179,22 @@ test('quick add falls back to a small window when the page cannot show the box',
   }
 });
 
+test('a page whose frame was blocked asks the background for the fallback window', async () => {
+  const { calls } = load();
+  await sendRuntime(calls, { action: 'openQuickAddWindow' }, { tab: { id: 11, url: 'https://strict-csp.test' } });
+  assert.equal(calls.windows.length, 1);
+  assert.equal(calls.windows[0].url, 'chrome-extension://test/quick.html?tabId=11');
+  assert.equal(calls.windows[0].type, 'popup');
+  assert.equal(calls.windows[0].focused, true);
+});
+
+test('the fallback window request is ignored when it does not come from a tab', async () => {
+  const { calls } = load();
+  await sendRuntime(calls, { action: 'openQuickAddWindow' }, {});
+  await sendRuntime(calls, { action: 'openQuickAddWindow' }, undefined);
+  assert.equal(calls.windows.length, 0);
+});
+
 test('quick add does nothing when there is no active tab', async () => {
   const { ctx, calls } = load({ activeTabs: [] });
   await quickCommand(ctx, calls);

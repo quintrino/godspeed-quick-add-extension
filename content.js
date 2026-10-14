@@ -11,31 +11,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // ── Quick add ───────────────────────────────────────────────────────────────
-// A single input that appears already focused. Enter sends the text to the
-// background script (the box closes immediately, so it feels instant) and
-// Escape cancels. Styles are set through the CSSOM rather than a <style> tag
-// so strict page CSPs can't block them, and live in a shadow root so the page
-// can't restyle the box.
+// The box is the extension's own page (quick.html) shown in an iframe. It has to
+// be: if the input lived in the web page, the page's key handlers, and those of
+// other extensions such as Vimium, would run on every keystroke (they listen on
+// the window before the input does, and can't tell a field inside a shadow root
+// is editable), so shortcut keys would trigger their commands instead of typing.
+// Keystrokes inside the frame never reach the page's document at all.
+//
+// The frame reports back with postMessage: 'ready' once it has loaded and 'close'
+// when the user is done. If 'ready' doesn't arrive (a page whose CSP blocks the
+// frame), the background script opens the small fallback window instead. The
+// frame sits in a shadow root so the page can't restyle it.
+
+const QUICK_ADD_READY_TIMEOUT_MS = 1000;
 
 let quickAddHost = null;
-let quickAddInput = null;
+let quickAddFrame = null;
+let quickAddTimer = null;
 
-function quickAddKeyAction(event) {
-  // Enter that confirms an IME composition (e.g. Japanese input) must not submit
-  if (event.isComposing || event.keyCode === 229) return null;
-  if (event.key === 'Enter') return 'submit';
-  if (event.key === 'Escape') return 'cancel';
-  return null;
+// Messages from the frame carry the extension's origin; the page can't fake that
+function quickAddOrigin() {
+  return chrome.runtime.getURL('').replace(/\/$/, '');
+}
+
+function focusQuickAdd() {
+  if (!quickAddFrame) return;
+  quickAddFrame.focus();
+  try {
+    quickAddFrame.contentWindow.focus();
+  } catch (error) {
+    // Not reachable yet; the frame focuses its own input once it loads
+  }
 }
 
 function openQuickAdd() {
   // Already open: keep typing where you left off
   if (quickAddHost && quickAddHost.isConnected) {
-    quickAddInput.focus();
+    focusQuickAdd();
     return;
   }
-
-  const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 
   const host = document.createElement('div');
   host.id = 'godspeed-quick-add';
@@ -44,59 +58,58 @@ function openQuickAdd() {
     'width: min(560px, 90vw); z-index: 2147483647;';
   const root = host.attachShadow({ mode: 'closed' });
 
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.placeholder = 'Add to Godspeed — Enter to save, Esc to cancel';
-  input.setAttribute('autocomplete', 'off');
-  input.style.cssText =
-    'box-sizing: border-box; width: 100%; padding: 14px 16px; font-size: 18px;' +
-    'font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;' +
-    'border-radius: 10px; outline: none; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);' +
-    (dark
-      ? 'background: #1f2937; color: #f9fafb; border: 1px solid #4b5563;'
-      : 'background: #ffffff; color: #111827; border: 1px solid #d1d5db;');
+  const frame = document.createElement('iframe');
+  frame.src = chrome.runtime.getURL('quick.html');
+  frame.title = 'Add to Godspeed';
+  frame.style.cssText =
+    'all: initial; display: block; width: 100%; height: 62px; border: 0;' +
+    'border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);';
+  frame.addEventListener('load', focusQuickAdd);
 
-  input.addEventListener('keydown', onQuickAddKeydown);
-  // Keep the page's own shortcuts from reacting to what is typed here
-  input.addEventListener('keyup', (e) => e.stopPropagation());
-  input.addEventListener('keypress', (e) => e.stopPropagation());
-  input.addEventListener('blur', closeQuickAdd);
-
-  root.appendChild(input);
+  root.appendChild(frame);
   (document.body || document.documentElement).appendChild(host);
   quickAddHost = host;
-  quickAddInput = input;
-  input.focus();
+  quickAddFrame = frame;
+
+  window.addEventListener('message', onQuickAddMessage);
+  quickAddTimer = setTimeout(quickAddUnavailable, QUICK_ADD_READY_TIMEOUT_MS);
+  focusQuickAdd();
 }
 
-function closeQuickAdd() {
-  if (!quickAddHost) return;
-  const host = quickAddHost;
-  quickAddHost = null;
-  quickAddInput = null;
-  host.remove();
-}
+function onQuickAddMessage(event) {
+  if (event.origin !== quickAddOrigin()) return;
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
 
-function onQuickAddKeydown(event) {
-  event.stopPropagation();
-  const action = quickAddKeyAction(event);
-  if (!action) return;
-  event.preventDefault();
-
-  if (action === 'cancel') {
+  if (data.godspeedQuickAdd === 'ready') {
+    clearTimeout(quickAddTimer);
+    quickAddTimer = null;
+    focusQuickAdd();
+  } else if (data.godspeedQuickAdd === 'close') {
     closeQuickAdd();
-    return;
   }
+}
 
-  const text = quickAddInput.value.trim();
-  if (!text) return; // Enter on an empty box does nothing
+// The frame never loaded, so ask the background script for the fallback window
+function quickAddUnavailable() {
   closeQuickAdd();
   try {
-    const sent = chrome.runtime.sendMessage({ action: 'quickAdd', text });
+    const sent = chrome.runtime.sendMessage({ action: 'openQuickAddWindow' });
     if (sent && sent.catch) sent.catch(() => {});
   } catch (error) {
     // Extension was reloaded while the page stayed open; nothing more we can do
   }
+}
+
+function closeQuickAdd() {
+  clearTimeout(quickAddTimer);
+  quickAddTimer = null;
+  window.removeEventListener('message', onQuickAddMessage);
+  if (!quickAddHost) return;
+  const host = quickAddHost;
+  quickAddHost = null;
+  quickAddFrame = null;
+  host.remove();
 }
 
 function showNotification(type, message, duration) {

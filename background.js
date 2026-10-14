@@ -31,10 +31,13 @@ browserAPI.commands.onCommand.addListener(async (command) => {
   }
 });
 
-// The quick-add box sends the typed text here
+// The quick-add box sends the typed text here. A page whose CSP blocked the box's
+// frame asks for the fallback window instead.
 browserAPI.runtime.onMessage.addListener((message, sender) => {
   if (message && message.action === 'quickAdd') {
     handleQuickAdd(message, sender);
+  } else if (message && message.action === 'openQuickAddWindow' && sender && sender.tab) {
+    openQuickAddWindow(sender.tab.id);
   }
 });
 
@@ -52,8 +55,13 @@ async function openQuickAdd() {
     console.log('Quick add not available on this page, using a window:', error.message);
   }
 
+  await openQuickAddWindow(tab.id);
+}
+
+// The box as a small window, for pages that can't show it in the page itself
+async function openQuickAddWindow(tabId) {
   await browserAPI.windows.create({
-    url: browserAPI.runtime.getURL(`quick.html?tabId=${tab.id}`),
+    url: browserAPI.runtime.getURL(`quick.html?tabId=${tabId}`),
     type: 'popup',
     width: 560,
     height: 90,

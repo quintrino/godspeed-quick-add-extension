@@ -65,9 +65,13 @@ A cross-browser extension that sends your current browser tabs to Godspeed with 
 3. Press `Enter` to save (or `Esc` to cancel)
 
 The box closes as soon as you press Enter, and the usual success or error message
-appears on the page. Enter on an empty box does nothing. On pages that can't show
-the box (new tab, `about:` and `chrome://` pages, the extension stores) a small
-window opens instead and works the same way.
+appears on the page. Enter on an empty box does nothing.
+
+The box is the extension's own page shown in a frame, so what you type never reaches
+the web page or other extensions. Vimium, Surfingkeys, Gmail's single-key shortcuts and
+the like won't react to it. On pages that can't show the box (new tab, `about:` and
+`chrome://` pages, the extension stores, or a site whose security policy blocks the
+frame) a small window opens instead and works the same way.
 
 Change the shortcut at `chrome://extensions/shortcuts` (Chrome) or
 `about:addons` → gear icon → *Manage Extension Shortcuts* (Firefox).

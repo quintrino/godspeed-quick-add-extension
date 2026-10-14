@@ -17,6 +17,9 @@ function referencedFiles(m) {
   for (const cs of m.content_scripts ?? []) {
     for (const f of [...(cs.js ?? []), ...(cs.css ?? [])]) files.add(f);
   }
+  for (const entry of m.web_accessible_resources ?? []) {
+    for (const f of typeof entry === 'string' ? [entry] : entry.resources) files.add(f);
+  }
   return [...files];
 }
 
@@ -82,4 +85,26 @@ test('the fallback page and its script ship in the package', async () => {
   const html = readFileSync(join(ROOT, 'quick.html'), 'utf8');
   assert.match(html, /<script src="quick\.js"><\/script>/);
   assert.doesNotMatch(html, /<script(?![^>]*src=)[^>]*>/);
+});
+
+test('quick.html is web accessible so the page can show it in a frame, in both packages', () => {
+  // MV2 (Firefox): a list of paths. MV3 (Chrome): entries scoped to the pages that may frame it.
+  assert.deepEqual(mv2.web_accessible_resources, ['quick.html']);
+  const mv3 = toChromeManifest(mv2);
+  assert.deepEqual(mv3.web_accessible_resources, [
+    { resources: ['quick.html'], matches: ['<all_urls>'] },
+  ]);
+});
+
+test('nothing else is exposed to web pages', () => {
+  const exposed = (m) =>
+    (m.web_accessible_resources ?? []).flatMap((e) => (typeof e === 'string' ? [e] : e.resources));
+  assert.deepEqual(exposed(mv2), ['quick.html']);
+  assert.deepEqual(exposed(toChromeManifest(mv2)), ['quick.html']);
+});
+
+test('a manifest without web-accessible resources converts without adding any', () => {
+  const { web_accessible_resources, ...without } = mv2;
+  void web_accessible_resources;
+  assert.equal(toChromeManifest(without).web_accessible_resources, undefined);
 });

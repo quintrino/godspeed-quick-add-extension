@@ -46,6 +46,12 @@ export function toChromeManifest(mv2) {
     background: { service_worker: scripts[0] },
   };
   if (browser_action) mv3.action = browser_action;
+  // MV3 wants each web-accessible resource scoped to the pages that may use it
+  if (mv2.web_accessible_resources) {
+    mv3.web_accessible_resources = [
+      { resources: mv2.web_accessible_resources, matches: ['<all_urls>'] },
+    ];
+  }
   return mv3;
 }
 
