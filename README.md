@@ -46,7 +46,8 @@ A cross-browser extension that sends your current browser tabs to Godspeed with 
 2. Select "Options" (Chrome) or "Manage Extension" → "Options" (Firefox)
 3. Enter your Godspeed API key (required)
 4. Optionally enter a List ID to send tasks to a specific list
-5. Click "Save Settings"
+5. Choose whether Quick Add text goes in the task title (default) or the task notes
+6. Click "Save Settings"
 
 ## Usage
 
@@ -85,6 +86,8 @@ With Quick Add, what you typed goes at the front:
 ```
 [Your note] title: [Page Title] url: [Page URL]
 ```
+If you set Quick Add text to go in the notes, the title keeps the usual format and what
+you typed is saved as the task's notes instead.
 
 ## Notifications
 
@@ -103,7 +106,8 @@ Content-Type: application/json
 
 {
   "title": "title: Example Page url: https://example.com",
-  "list_id": "optional-list-id"
+  "list_id": "optional-list-id",
+  "notes": "only with Quick Add text when set to go in the notes"
 }
 ```
 

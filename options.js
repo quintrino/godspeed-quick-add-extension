@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', loadSettings);
 document.getElementById('settings-form').addEventListener('submit', saveSettings);
 
 async function loadSettings() {
-  const settings = await chrome.storage.sync.get(['apiKey', 'listId']);
+  const settings = await chrome.storage.sync.get(['apiKey', 'listId', 'quickAddTarget']);
   
   if (settings.apiKey) {
     document.getElementById('apiKey').value = settings.apiKey;
@@ -13,6 +13,9 @@ async function loadSettings() {
   if (settings.listId) {
     document.getElementById('listId').value = settings.listId;
   }
+
+  document.getElementById('quickAddTarget').value =
+    settings.quickAddTarget === 'notes' ? 'notes' : 'title';
 }
 
 async function saveSettings(e) {
@@ -20,6 +23,7 @@ async function saveSettings(e) {
   
   const apiKey = document.getElementById('apiKey').value.trim();
   const listId = document.getElementById('listId').value.trim();
+  const quickAddTarget = document.getElementById('quickAddTarget').value === 'notes' ? 'notes' : 'title';
   
   if (!apiKey) {
     showStatus('Please enter an API key', 'error');
@@ -29,7 +33,8 @@ async function saveSettings(e) {
   try {
     await chrome.storage.sync.set({
       apiKey: apiKey,
-      listId: listId
+      listId: listId,
+      quickAddTarget: quickAddTarget
     });
     
     showStatus('Settings saved successfully!', 'success');

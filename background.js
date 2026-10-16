@@ -95,7 +95,7 @@ async function sendTabsToGodspeed(tabs, prefix) {
   // Get settings
   let settings;
   try {
-    settings = await browserAPI.storage.sync.get(['apiKey', 'listId']);
+    settings = await browserAPI.storage.sync.get(['apiKey', 'listId', 'quickAddTarget']);
     console.log('Settings loaded:', { hasApiKey: !!settings.apiKey, listId: settings.listId });
   } catch (error) {
     console.error('Error loading settings from storage:', error);
@@ -119,7 +119,7 @@ async function sendTabsToGodspeed(tabs, prefix) {
   for (const tab of tabs) {
     console.log('Sending tab:', tab.title);
     try {
-      await sendTab(tab, settings.apiKey, settings.listId, prefix);
+      await sendTab(tab, settings.apiKey, settings.listId, prefix, settings.quickAddTarget);
       console.log('Tab sent successfully:', tab.title);
       results.success.push(tab);
     } catch (error) {
@@ -159,13 +159,19 @@ async function sendTabsToGodspeed(tabs, prefix) {
   }
 }
 
-async function sendTab(tab, apiKey, listId, prefix) {
-  // Quick-add text, when given, goes at the front of the task
-  const title = `${prefix ? prefix + ' ' : ''}title: ${tab.title} url: ${tab.url}`;
+async function sendTab(tab, apiKey, listId, prefix, quickAddTarget) {
+  // Quick-add text, when given, goes at the front of the task title, or into the
+  // task's notes when the user chose that in the options
+  const toNotes = quickAddTarget === 'notes';
+  const title = `${prefix && !toNotes ? prefix + ' ' : ''}title: ${tab.title} url: ${tab.url}`;
 
   const body = {
     title: title
   };
+
+  if (prefix && toNotes) {
+    body.notes = prefix;
+  }
 
   // Only include list_id if it's not empty
   if (listId && listId.trim()) {

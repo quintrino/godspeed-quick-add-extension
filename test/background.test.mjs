@@ -155,6 +155,33 @@ test('without quick-add text the title format is unchanged', async () => {
   assert.equal(taskTitle(calls), 'title: Page url: https://x.test/');
 });
 
+test('with the notes preference, quick-add text goes in the task notes and the title is unchanged', async () => {
+  const { ctx, calls } = load({ fetchImpl: () => ok() });
+  await ctx.sendTab({ title: 'Page', url: 'https://x.test/' }, 'K', '', 'buy milk', 'notes');
+  const body = JSON.parse(calls.fetches[0].init.body);
+  assert.equal(body.title, 'title: Page url: https://x.test/');
+  assert.equal(body.notes, 'buy milk');
+});
+
+test('the notes preference sends no notes when there is no quick-add text', async () => {
+  const { ctx, calls } = load({ fetchImpl: () => ok() });
+  await ctx.sendTab({ title: 'Page', url: 'https://x.test/' }, 'K', '', undefined, 'notes');
+  assert.ok(!('notes' in JSON.parse(calls.fetches[0].init.body)));
+});
+
+test('the saved quickAddTarget setting is applied to typed quick-add text', async () => {
+  const { calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K', quickAddTarget: 'notes' } });
+  await sendRuntime(
+    calls,
+    { action: 'quickAdd', text: 'call dentist' },
+    { tab: { id: 3, title: 'Clinic', url: 'https://clinic.test/' } },
+  );
+  await tick();
+  const body = JSON.parse(calls.fetches[0].init.body);
+  assert.equal(body.title, 'title: Clinic url: https://clinic.test/');
+  assert.equal(body.notes, 'call dentist');
+});
+
 test('the quick-add shortcut asks the active tab to show its box', async () => {
   const { ctx, calls } = load({
     activeTabs: [{ id: 5, url: 'https://x.test' }],
