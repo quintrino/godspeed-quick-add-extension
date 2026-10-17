@@ -92,6 +92,9 @@ async function handleQuickAdd(message, sender) {
 async function sendTabsToGodspeed(tabs, prefix) {
   console.log('sendTabsToGodspeed called with:', tabs);
 
+  // Nothing highlighted (e.g. no tab in the window): nothing to send or report on
+  if (!tabs || tabs.length === 0) return;
+
   // Get settings
   let settings;
   try {
@@ -199,7 +202,8 @@ async function sendTab(tab, apiKey, listId, prefix, quickAddTarget) {
     throw new Error(errorMessage);
   }
 
-  return await response.json();
+  // The task is already created at this point; an empty or non-JSON body is not a failure
+  return response.json().catch(() => null);
 }
 
 function showNotification(tabId, type, message, duration) {

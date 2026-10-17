@@ -277,3 +277,20 @@ test('the existing send shortcut still sends the tab immediately, without a box'
   assert.equal(calls.windows.length, 0);
   assert.ok(!calls.messages.some((m) => m.action === 'openQuickAdd'));
 });
+
+test('sending no tabs does nothing, rather than failing on a missing first tab', async () => {
+  const { ctx, calls } = load({ fetchImpl: () => ok(), settings: { apiKey: 'K' } });
+  await ctx.sendTabsToGodspeed([]);
+  await tick();
+  assert.equal(calls.fetches.length, 0);
+  assert.equal(calls.messages.length, 0);
+});
+
+test('a successful response with an empty body still counts as sent', async () => {
+  const empty = { ok: true, status: 204, json: async () => { throw new SyntaxError('no body'); } };
+  const { ctx, calls } = load({ fetchImpl: () => empty, settings: { apiKey: 'K' } });
+  await ctx.sendTabsToGodspeed([{ id: 3, title: 't', url: 'https://x.test' }]);
+  await tick();
+  assert.equal(calls.messages.length, 1);
+  assert.equal(calls.messages[0].type, 'success');
+});

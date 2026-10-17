@@ -83,6 +83,19 @@
       background-color: #1d4ed8;
     }
     
+    button.secondary {
+      background-color: transparent;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+      margin-top: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    button.secondary:hover {
+      background-color: #fee2e2;
+    }
+
     .status {
       margin-top: 16px;
       padding: 12px;
@@ -110,8 +123,9 @@
   <form id="settings-form">
     <div class="form-group">
       <label for="apiKey">API Key *</label>
-      <input type="password" id="apiKey" placeholder="Enter your Godspeed API key" required>
-      <div class="help-text">Your API key is used as the Bearer token for authentication</div>
+      <input type="password" id="apiKey" placeholder="Enter your Godspeed API key" autocomplete="new-password">
+      <div class="help-text">Your API key is used as the Bearer token for authentication. Once saved it is not shown again; leave this blank to keep it</div>
+      <button type="button" id="clearKey" class="secondary" hidden>Clear saved API key</button>
     </div>
     
     <div class="form-group">

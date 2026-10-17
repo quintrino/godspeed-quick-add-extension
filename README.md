@@ -15,36 +15,34 @@ A cross-browser extension that sends your current browser tabs to Godspeed with 
 
 ### Chrome
 
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode" (toggle in top-right corner)
-3. Click "Load unpacked"
-4. Select the `godspeed-extension` folder
+The source `manifest.json` is Manifest V2, which Chrome no longer loads, so use the
+generated Manifest V3 build:
+
+1. Run `npm run build` and unzip `dist/godspeed-task-sender-chrome-<version>.zip` into a folder
+2. Open Chrome and navigate to `chrome://extensions/`
+3. Enable "Developer mode" (toggle in top-right corner)
+4. Click "Load unpacked" and select the unzipped folder
 5. The extension is now installed!
 
 ### Firefox
 
-**For Testing (Temporary Installation):**
-1. Rename `manifest_firefox_v2.json` to `manifest.json` (backup the original first)
-2. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
-3. Click "Load Temporary Add-on"
-4. Navigate to the `godspeed-extension` folder and select `manifest.json`
-5. The extension is now installed! (Note: temporary installation requires reloading after browser restart)
+**Temporary install (for testing):**
+1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on"
+3. Select `manifest.json` in this folder
+4. The extension stays installed until Firefox restarts
 
-**For Submission to Firefox Add-ons:**
-1. Use `manifest_firefox_v2.json` (rename to `manifest.json`)
-2. Create a zip file of all extension files
-3. Submit to https://addons.mozilla.org/developers/
-4. In the submission form, for "Does your extension collect user data?":
-   - Select "No" (the extension only stores API keys locally and sends data to Godspeed API when user explicitly triggers it)
-5. Fill in other required fields and submit for review
-
-**To switch back to Chrome**: Use the original `manifest.json`
+**Publishing:** pushes to `main` submit new versions automatically (see
+[Development and releasing](#development-and-releasing)). The data-collection answer
+on the listing is "No": the extension only stores your API key in browser storage and
+sends data to the Godspeed API when you trigger it.
 
 ## Configuration
 
 1. Right-click the extension icon in your browser toolbar
 2. Select "Options" (Chrome) or "Manage Extension" → "Options" (Firefox)
-3. Enter your Godspeed API key (required)
+3. Enter your Godspeed API key (required the first time). Once saved it is not shown
+   again: leave the field blank to keep it, or type a new key to replace it
 4. Optionally enter a List ID to send tasks to a specific list
 5. Choose whether Quick Add text goes in the task title (default) or the task notes
 6. Click "Save Settings"
@@ -122,16 +120,17 @@ Content-Type: application/json
 ## Browser Compatibility
 
 - Chrome (Manifest V3)
-- Firefox (Manifest V3)
+- Firefox (Manifest V2)
 - Other Chromium-based browsers (Edge, Brave, etc.)
 
 ## Files Structure
 
 ```
-godspeed-extension/
-├── manifest.json       # Extension configuration
-├── background.js       # Service worker handling API calls
-├── content.js          # Content script for notifications
+godspeed-task-sender/
+├── manifest.json       # Extension configuration (Manifest V2; the Chrome MV3 one is generated)
+├── background.js       # Background script handling API calls
+├── content.js          # Content script for notifications and the quick-add box
+├── quick.html / .js    # Quick-add input page (framed in the page, or a small window)
 ├── content.css         # Notification styles
 ├── options.html        # Settings page UI
 ├── options.js          # Settings page logic
