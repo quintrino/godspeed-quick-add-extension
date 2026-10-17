@@ -5,6 +5,10 @@
 // (It also keeps the secret out of the page, where browser password managers can
 // autofill or overwrite it.)
 
+// Firefox's promise-based API is `browser`; its `chrome` namespace is callback-only there
+// and returns undefined, so awaiting it yields nothing. Chrome (MV3) promises work on `chrome`.
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 const KEY_PLACEHOLDER = 'Enter your Godspeed API key';
 const SAVED_KEY_PLACEHOLDER = 'Saved. Leave blank to keep it, or enter a new key';
 
@@ -19,7 +23,7 @@ function showKeySaved(saved) {
 
 async function loadSettings() {
   try {
-    const settings = await chrome.storage.sync.get(['apiKey', 'listId', 'quickAddTarget']);
+    const settings = await browserAPI.storage.sync.get(['apiKey', 'listId', 'quickAddTarget']);
 
     showKeySaved(!!settings.apiKey);
 
@@ -42,7 +46,7 @@ async function saveSettings(e) {
   const quickAddTarget = document.getElementById('quickAddTarget').value === 'notes' ? 'notes' : 'title';
 
   try {
-    const { apiKey: savedApiKey } = await chrome.storage.sync.get('apiKey');
+    const { apiKey: savedApiKey } = await browserAPI.storage.sync.get('apiKey');
 
     if (!newApiKey && !savedApiKey) {
       showStatus('Please enter an API key', 'error');
@@ -53,7 +57,7 @@ async function saveSettings(e) {
     if (newApiKey) {
       changes.apiKey = newApiKey;
     }
-    await chrome.storage.sync.set(changes);
+    await browserAPI.storage.sync.set(changes);
 
     document.getElementById('apiKey').value = '';
     showKeySaved(true);
@@ -65,7 +69,7 @@ async function saveSettings(e) {
 
 async function clearApiKey() {
   try {
-    await chrome.storage.sync.remove('apiKey');
+    await browserAPI.storage.sync.remove('apiKey');
     document.getElementById('apiKey').value = '';
     showKeySaved(false);
     showStatus('API key removed', 'success');

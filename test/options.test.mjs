@@ -10,7 +10,7 @@ const source = readFileSync(join(ROOT, 'options.js'), 'utf8');
 const tick = () => new Promise((r) => setImmediate(r));
 
 /** Run options.js against a fake page and an in-memory storage.sync. */
-function load({ stored = {}, getFails = false, setFails = false } = {}) {
+function load({ stored = {}, getFails = false, setFails = false, firefox = false } = {}) {
   const ids = ['settings-form', 'apiKey', 'listId', 'quickAddTarget', 'clearKey', 'status'];
   const els = Object.fromEntries(ids.map((id) => [id, new FakeElement('el')]));
   els.quickAddTarget.value = 'title';
@@ -45,6 +45,12 @@ function load({ stored = {}, getFails = false, setFails = false } = {}) {
       },
     },
   };
+  if (firefox) {
+    // Firefox: `browser` is promise-based, `chrome` is callback-only and returns undefined
+    context.browser = context.chrome;
+    const noop = () => undefined;
+    context.chrome = { storage: { sync: { get: noop, set: noop, remove: noop } } };
+  }
   vm.createContext(context);
   vm.runInContext(source, context);
 
@@ -141,4 +147,16 @@ test('the key field is not required by the browser and opts out of password auto
   const field = html.match(/<input[^>]*id="apiKey"[^>]*>/)[0];
   assert.doesNotMatch(field, /\brequired\b/);
   assert.match(field, /autocomplete="new-password"/);
+});
+
+test('in Firefox, where chrome.* returns undefined, settings still load and save', async () => {
+  const page = load({ firefox: true, stored: { apiKey: 'SECRET', listId: 'L' } });
+  await page.open();
+  assert.equal(page.els.listId.value, 'L');
+  assert.equal(page.els.clearKey.hidden, false);
+  page.els.listId.value = 'M';
+  await page.submit();
+  assert.match(page.els.status.className, /success/);
+  assert.equal(page.store.listId, 'M');
+  assert.equal(page.store.apiKey, 'SECRET');
 });
